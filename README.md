@@ -28,5 +28,10 @@ There are two part in this system. One is Arduino, the other is matlab.
 * https://circuitdigest.com/microcontroller-projects/serial-communication-between-matlab-and-arduino
 * https://www.mathworks.com/help/matlab/matlab_external/read-streaming-data-from-arduino.html
 
+2. Timer in GUIDE
+*. https://itectec.com/matlab/matlab-how-to-close-a-matlab-gui-by-using-count-down-timer/
+
+3. save data dialog
+* https://www.ilovematlab.cn/thread-35547-1-1.html
 ## 
 
