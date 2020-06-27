@@ -142,7 +142,7 @@ guidata(hObject, handles);
       if isfield(handles, 'arduinoSerial')
           s = handles.arduinoSerial;
           n = s.ValuesReceived - handles.count;
-          for j = 1:2000
+          for j = 1:3000
               
               data = fscanf(s, '%d');
               if isempty(data)
@@ -375,6 +375,10 @@ try
         fprintf(fid,'%d, %d\n',handles.index(i), handles.resistor(i));
     end
     fclose(fid);
+    
+    handles.count = 0;
+    handles.index = [];
+    handles.resistor = [];
 catch
     disp( 'fail to save data.' );
 end
