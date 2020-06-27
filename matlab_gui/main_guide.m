@@ -22,7 +22,7 @@ function varargout = main_guide(varargin)
 
 % Edit the above text to modify the response to help main_guide
 
-% Last Modified by GUIDE v2.5 27-Jun-2020 13:01:00
+% Last Modified by GUIDE v2.5 28-Jun-2020 01:00:57
 
 % Begin initialization code - DO NOT EDIT
 gui_Singleton = 1;
@@ -269,7 +269,7 @@ handles = guidata(hObject);
 % fclose(instrfind);
 
 try
-    arduinoSerial = serial('/dev/cu.usbmodem141201','BaudRate',handles.baudrate);
+    arduinoSerial = serial('/dev/cu.usbmodem142201','BaudRate',handles.baudrate);
     fopen(arduinoSerial);
     fscanf(arduinoSerial) %reads "Ready"
     
@@ -316,7 +316,8 @@ if isfield(handles, 'arduinoSerial')
     end
     
 elseif ~isempty(instrfind)
-    fclose(instrfind)
+    fclose(instrfind);
+    disp( 'success to disconnect.' )
 else
     disp('have not connenct serial port.')
 end
@@ -360,6 +361,7 @@ handles = guidata(hObject);
 
 if strcmp(handles.serialTimer.Running, 'on') || strcmp(handles.plotFigureTimer.Running, 'on')
     disp( 'Press the button to stop collecting data.' );
+    guidata(hObject, handles);
     return;
 end
 
@@ -384,4 +386,3 @@ catch
 end
 
 guidata(hObject, handles);
-

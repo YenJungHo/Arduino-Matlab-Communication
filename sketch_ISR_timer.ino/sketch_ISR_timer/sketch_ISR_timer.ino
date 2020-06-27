@@ -1,9 +1,15 @@
 #include "arduino_queue_linklist.h"
 
-#define SEVEN_SEC_DISPLAY_POS_PIN_BASE      (50)
-#define SEVEN_SEC_DISPLAY_POS_PIN_SIZE      (4)
-#define SEVEN_SEC_DISPLAY_NUM_PIN_BASE      (40)
-#define SEVEN_SEC_DISPLAY_NUM_PIN_SIZE      (8)
+// mode
+#define OP_MODE_BUTTON_PIN       (2)
+
+#define STATUS_OP_MODE_SENSOR_V  (0)
+#define STATUS_OP_MODE_TIMER_L   (1)
+#define STATUS_OP_MODE_TIMER_H   (2)
+#define STATUS_OP_MODE_NUMBER    (3)
+
+unsigned int g_nOpModeBtnPrevStatus;
+unsigned int g_nOpMode;
 
 // timer clock number
 unsigned long time0_counter_s = 0;
@@ -14,6 +20,11 @@ unsigned long time2_counter_s = 0;
 unsigned long time2_counter_e = 0;
 
 // seven section display
+#define SEVEN_SEC_DISPLAY_POS_PIN_BASE      (50)
+#define SEVEN_SEC_DISPLAY_POS_PIN_SIZE      (4)
+#define SEVEN_SEC_DISPLAY_NUM_PIN_BASE      (40)
+#define SEVEN_SEC_DISPLAY_NUM_PIN_SIZE      (8)
+
 const int pinState[10][7] = {
   {1, 1, 1, 1, 1, 1, 0}, // 0
   {0, 1, 1, 0, 0, 0, 0}, // 1
@@ -28,17 +39,17 @@ const int pinState[10][7] = {
 };
 
 // varible resistor
-#define VAR_RESISTOR_AI_PIN         (0)
+#define VAR_RESISTOR_AI_PIN         (3)
+
+unsigned int g_nCurResistorData = 0;
 QueueList<int> q_resistor;
 
 void init_timerISR() {
-  cli();//stop interrupts
-  
-  //set timer0 interrupt at 2kHz
+  //set timer0 interrupt at 1kHz
   TCCR0A = 0;// set entire TCCR2A register to 0
   TCCR0B = 0;// same for TCCR2B
   TCNT0  = 0;//initialize counter value to 0
-  // set compare match register for 2khz increments
+  // set compare match register for 1khz increments
   OCR0A = 249;// = (16*10^6) / (1000*64) - 1 (must be <256)
   // turn on CTC mode
   TCCR0A |= (1 << WGM01);
@@ -73,7 +84,6 @@ void init_timerISR() {
 //  // enable timer compare interrupt
 //  TIMSK2 |= (1 << OCIE2A);
   
-  sei();//allow interrupts
 }
 
 void init_7sec_display( int num_base, int num_size, int pos_base, int pos_size ) {
@@ -86,7 +96,15 @@ void init_7sec_display( int num_base, int num_size, int pos_base, int pos_size )
 }
 
 void init_matlab_channel(){
-  
+
+  Serial.println("Ready.");
+}
+
+void init_mode_select(){
+  pinMode(OP_MODE_BUTTON_PIN,INPUT);
+
+  g_nOpMode = STATUS_OP_MODE_SENSOR_V;
+  g_nOpModeBtnPrevStatus = LOW;
 }
 
 void setup(){
@@ -94,23 +112,28 @@ void setup(){
   
   init_7sec_display(SEVEN_SEC_DISPLAY_NUM_PIN_BASE, SEVEN_SEC_DISPLAY_NUM_PIN_SIZE,
                     SEVEN_SEC_DISPLAY_POS_PIN_BASE, SEVEN_SEC_DISPLAY_POS_PIN_SIZE);
-  init_timerISR();
-
+                    
   init_matlab_channel();
 
-  Serial.println("Ready.");
+  init_mode_select();
 
+  cli();//stop interrupts
+  init_timerISR();
+  sei();//allow interrupts
+  
 }//end setup
 
 
-ISR(TIMER0_COMPA_vect){//timer0 interrupt 2kHz 
+ISR(TIMER0_COMPA_vect){//timer0 interrupt 1kHz 
   //noInterrupts();
   time0_counter_s++;
 
   //q_resistor.Push( analogRead( VAR_RESISTOR_AI_PIN ) );
   //Serial.print( time0_counter_s );
   //Serial.print( ',' );
-  Serial.println( analogRead( VAR_RESISTOR_AI_PIN ) );
+
+  g_nCurResistorData = analogRead( VAR_RESISTOR_AI_PIN );
+  Serial.println(g_nCurResistorData);
 
   //set_data_seven_display( time0_counter_s );
   
@@ -123,13 +146,6 @@ ISR(TIMER1_COMPA_vect){//timer1 interrupt 1Hz
   //noInterrupts();
   time1_counter_s++;
 
-  //Serial.print( time1_counter_s );
-  //Serial.print( ',' );
-  //Serial.println( analogRead( VAR_RESISTOR_AI_PIN ) );
-  //Serial.println( analogRead( VAR_RESISTOR_AI_PIN ) );
-
-  
-
   time1_counter_e++;
   //interrupts();
 }
@@ -138,7 +154,6 @@ ISR(TIMER2_COMPA_vect){//timer1 interrupt 8kHz
   //noInterrupts();
   //time2_counter_s++;
   
-
   //time2_counter_e++;
   //interrupts();
 }
@@ -154,13 +169,56 @@ void set_data_seven_display_one_digit(int number, int dp, int pos) {
     delay(5);
 }
 
-void set_data_seven_display(int number) {
+void set_data_seven_display(unsigned long number) {
     int r = 0;
+//    Serial.print( number );
+//    Serial.print( ", " );
     for( int i = 0; i < SEVEN_SEC_DISPLAY_POS_PIN_SIZE; i++ ) {
       r = number % 10;
       number /= 10;
+      
+//      Serial.print( i );
+//      Serial.print( " " );
+//      Serial.print( r );
+//      Serial.print( " " );
+//      Serial.print( number );
+//      Serial.print( " " );
       set_data_seven_display_one_digit( r, 0 , i );
     }
+   // Serial.println( "" );
+}
+
+int get_cur_op_mode() {
+  int nMode = digitalRead(OP_MODE_BUTTON_PIN);
+  // rising edge trigger
+  if( g_nOpModeBtnPrevStatus == LOW && nMode == HIGH ) {
+    g_nOpMode++;
+    g_nOpMode %= STATUS_OP_MODE_NUMBER;
+    
+    //Serial.println("Mode change");
+  }
+  g_nOpModeBtnPrevStatus = nMode;
+  return g_nOpMode;
+}
+
+void show_data_seven_display(unsigned int nMode){
+  switch(nMode) {
+    case STATUS_OP_MODE_SENSOR_V:
+      set_data_seven_display( g_nCurResistorData );
+      break;
+      
+     case STATUS_OP_MODE_TIMER_L:
+      set_data_seven_display( time1_counter_s );
+      break; 
+          
+    case STATUS_OP_MODE_TIMER_H:
+      set_data_seven_display( time0_counter_s );
+      break; 
+       
+    default:
+      set_data_seven_display( time1_counter_s );
+      break;
+  }
 }
 
 void loop(){
@@ -169,6 +227,7 @@ void loop(){
 
   // print counter
   //noInterrupts();
+
   /*
   Serial.print( time0_counter_s );
   Serial.print( " " );
@@ -179,17 +238,18 @@ void loop(){
   Serial.print( time1_counter_s );
   Serial.print( " " );
   Serial.print( time1_counter_e );
-  Serial.print( " " );
-
-  
+  Serial.println( " " );
+  */
+    /*
   Serial.print( time2_counter_s );
   Serial.print( " " );
   Serial.print( time2_counter_e );
   Serial.println( "" );
   //interrupts();
   */
-
-  set_data_seven_display( time1_counter_s );
+  int nMode = get_cur_op_mode();
+  show_data_seven_display(nMode);
+  
   /*
   noInterrupts();
   set_data_seven_display( time0_counter_s );
